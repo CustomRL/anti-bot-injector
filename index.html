@@ -435,6 +435,23 @@
   .btn-secondary:hover:not(:disabled) { background: #242a34; border-color: #2e3542; }
   .btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
 
+  .btn-ghost {
+    background: transparent;
+    border: none;
+    color: var(--text-mute);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 11.5px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: background 120ms, color 120ms;
+  }
+  .btn-ghost:hover { background: var(--raised); color: var(--text); }
+  .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
   .gate-backdrop {
     position: absolute;
     inset: 40px 0 0 0;
@@ -722,6 +739,47 @@
     white-space: pre-wrap;
   }
 
+  .mini-console {
+    margin-top: 24px;
+    background: #080a0d;
+    border: 1px solid var(--border-soft);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .console-head {
+    padding: 6px 12px;
+    background: #0c0f14;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .console-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-mute);
+    font-weight: 700;
+  }
+  .console-body {
+    height: 120px;
+    overflow-y: auto;
+    padding: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.6;
+  }
+  .console-line { margin-bottom: 4px; display: flex; gap: 8px; }
+  .console-time { color: var(--text-mute); flex-shrink: 0; }
+  .console-msg { word-break: break-all; }
+  .console-msg.info { color: var(--text-dim); }
+  .console-msg.success { color: var(--green); }
+  .console-msg.error { color: var(--red); }
+  .console-body::-webkit-scrollbar { width: 4px; }
+  .console-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
   .status-footer {
     margin-top: 32px;
     padding-top: 28px;
@@ -792,6 +850,8 @@ const I = {
   download: "M12 3v12 m-5-5 5 5 5-5 M5 21h14",
   check: "m5 12 5 5L20 7",
   zap: "M13 2 3 14h8l-1 8 10-12h-8l1-8z",
+  pulse: "M10 13a4.4 4.4 0 0 0-4.4-4.4A4.4 4.4 0 0 0 1.2 13c0 2.4 2 4.4 4.4 4.4a4.4 4.4 0 0 0 4.4-4.4Z M4.5 13h1m3 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2a.5.5 0 0 1 .5-.5 Z M10 13h10 M14 13h1 m3 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2a.5.5 0 0 1 .5-.5 Z",
+  refresh: "M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8m0 0V3m0 5h5m-7 4a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16m0 0v5m0-5h-5",
 };
 
 const STATES = {
@@ -840,6 +900,7 @@ function App() {
   const [authUser, setAuthUser] = useState(null);
   const [authError, setAuthError] = useState('');
   const [loggingIn, setLoggingIn] = useState(false);
+  const [logs, setLogs] = useState([]);
 
   const injectedPidRef = useRef(null);
   const didAutoRef = useRef(false);
@@ -879,6 +940,12 @@ function App() {
   }, []);
 
   useEffect(() => { refreshAuth(); }, [refreshAuth]);
+
+  useEffect(() => {
+    IPC.onLog((data) => {
+      setLogs(prev => [...prev.slice(-49), data]);
+    });
+  }, []);
 
   // Auth-gated injection-related polling. We still let the user see the UI
   // while anon, but no background work should happen.
@@ -1078,6 +1145,7 @@ function App() {
                 onLaunch={launchGame} hasProc={!!proc}
                 dllInfo={dllInfo} updateProgress={updateProgress}
                 onUpdate={() => runUpdate(true)} onRefresh={refreshDll}
+                logs={logs} onClearLogs={() => setLogs([])}
               />
             </div>
           )}
@@ -1159,6 +1227,8 @@ function App() {
             </div>
           )}
 
+          {route === 'diagnostics' && <Diagnostics onRefresh={refreshDll} />}
+
           {route === 'about' && (
             <div className="content">
               <div className="about-card">
@@ -1223,12 +1293,13 @@ function Sidebar({ route, setRoute }) {
       <div className="side-label">Workspace</div>
       {item('injector', I.inject, 'Injector')}
       {item('settings', I.settings, 'Settings')}
+      {item('diagnostics', I.pulse, 'Diagnostics')}
       {item('about', I.info, 'About')}
     </aside>
   );
 }
 
-function StatusCard({ state, status, waitRemaining, injectProgress, canInject, isInjected, isBusy, errMsg, onInject, onLaunch, hasProc, dllInfo, updateProgress, onUpdate, onRefresh }) {
+function StatusCard({ state, status, waitRemaining, injectProgress, canInject, isInjected, isBusy, errMsg, onInject, onLaunch, hasProc, dllInfo, updateProgress, onUpdate, onRefresh, logs, onClearLogs }) {
   const cls = `status-card status-${state}`;
   let displaySub = status.sub;
   if (state === STATES.WAITING) displaySub = `Starting in ${(waitRemaining/1000).toFixed(1)} seconds`;
@@ -1306,6 +1377,8 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
       {btn}
       {state === STATES.ERROR && errMsg && <div className="err-msg">{errMsg}</div>}
 
+      <MiniConsole logs={logs} onClear={onClearLogs} />
+
       <div className="status-footer">
         <div className="status-footer-hd">
           <h4>Module {versionLabel}</h4>
@@ -1374,6 +1447,117 @@ function AuthGate({ loading, loggingIn, error, onLogin }) {
 
         {error && <div className="gate-error">{error}</div>}
       </div>
+    </div>
+  );
+}
+
+function MiniConsole({ logs, onClear }) {
+  const bodyRef = useRef(null);
+
+  useEffect(() => {
+    if (bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  if (!logs || logs.length === 0) return null;
+
+  return (
+    <div className="mini-console">
+      <div className="console-head">
+        <span className="console-title">Process Log</span>
+        <button className="btn-ghost" style={{padding: '2px 6px', fontSize: 9}} onClick={onClear}>Clear</button>
+      </div>
+      <div className="console-body" ref={bodyRef}>
+        {logs.map((L, i) => (
+          <div key={i} className="console-line">
+            <span className="console-time">[{L.timestamp}]</span>
+            <span className={`console-msg ${L.type}`}>{L.msg}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Diagnostics({ onRefresh }) {
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const run = async () => {
+    setLoading(true);
+    const r = await IPC.diag.run();
+    setResults(r);
+    setLoading(false);
+  };
+
+  const fixDefender = async () => {
+    setLoading(true);
+    await IPC.diag.fixDefender();
+    await run();
+  };
+
+  useEffect(() => { run(); }, []);
+
+  const Item = ({ label, sub, ok, action }) => (
+    <div className="field" style={{padding: '16px 0', borderBottom: '1px solid var(--border-soft)', borderTop: 'none'}}>
+      <div style={{flex: 1}}>
+        <div className="field-label" style={{display:'flex', alignItems:'center', gap:10, marginBottom: 4}}>
+          {loading ? <span className="status-dot" style={{width: 14, height: 14, background: 'rgba(255,255,255,0.05)', borderRadius: '50%'}} /> :
+           ok ? <Icon d={I.check} size={16} stroke={3} style={{color:'var(--green)', flexShrink: 0}} /> :
+           <Icon d={I.zap} size={16} stroke={3} style={{color:'var(--red)', flexShrink: 0}} />}
+          <span style={{fontSize: 13, fontWeight: 500}}>{label}</span>
+        </div>
+        <div className="field-sub" style={{marginLeft: 26, fontSize: 11.5, color: 'var(--text-mute)'}}>{sub}</div>
+      </div>
+      <div style={{flexShrink: 0}}>
+        {action && !loading && !ok && action}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="content" style={{display:'block'}}>
+      <div className="card" style={{maxWidth: 600, margin: '0 auto'}}>
+        <div className="card-hd" style={{borderBottom: '1px solid var(--border-soft)', paddingBottom: 18}}>
+          <h3>System Check</h3>
+          <button className="btn-ghost" onClick={run} disabled={loading}>
+            <Icon d={I.refresh} size={12} className={loading ? 'spin' : ''} /> {loading ? 'Checking...' : 'Run again'}
+          </button>
+        </div>
+        <div className="card-bd">
+          <Item
+            label="Visual C++ Redistributable"
+            sub="Required to run the 64-bit module hooks."
+            ok={results?.vcredist}
+            action={<a href="#" className="tag-pill accent" onClick={(e) => { e.preventDefault(); IPC.openExternal('https://aka.ms/vs/17/release/vc_redist.x64.exe'); }}>Download</a>}
+          />
+          <Item
+            label="Administrator Privileges"
+            sub="Launcher needs elevation to inject into the game process."
+            ok={results?.admin}
+            action={<span className="tag-pill">Restart as Admin</span>}
+          />
+          <Item
+            label="Defender Exclusion"
+            sub="Ensures Windows Defender isn't blocking the injector or DLL."
+            ok={results?.defenderExcluded}
+            action={results?.admin ?
+              <button className="tag-pill accent" onClick={fixDefender}>Fix</button> :
+              <span className="tag-pill">Requires Admin</span>
+            }
+          />
+          <Item
+            label="Module Integrity"
+            sub="Ensures the DLL matches the expected version."
+            ok={results?.integrity}
+            action={<button className="tag-pill accent" style={{cursor:'pointer', border:'none'}} onClick={async () => { await IPC.dllUpdate(); onRefresh(); run(); }}>Repair</button>}
+          />
+        </div>
+      </div>
+      <p className="hint" style={{marginTop: 16, textAlign: 'center', opacity: 0.7}}>
+        If you continue to experience issues, please contact support in our Discord.
+      </p>
     </div>
   );
 }

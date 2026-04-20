@@ -23,4 +23,9 @@ contextBridge.exposeInMainWorld('api', {
   dllUpdate: () => ipcRenderer.invoke('dll:update'),
   inject: (pid) => ipcRenderer.invoke('inject:run', { pid }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+  diag: {
+    run: () => ipcRenderer.invoke('diag:run'),
+    fixDefender: () => ipcRenderer.invoke('diag:fix-defender'),
+  },
+  onLog: (cb) => ipcRenderer.on('discovery-log', (_evt, data) => cb(data)),
 });

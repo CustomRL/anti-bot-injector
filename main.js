@@ -107,6 +107,16 @@ app.whenReady().then(() => {
   // the dll:status IPC handler.
   syncDll({ force: false }).catch(() => { /* surfaced in dllState */ });
 });
+function log(msg, type = 'info') {
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('discovery-log', {
+      timestamp: new Date().toLocaleTimeString(),
+      msg,
+      type,
+    });
+  }
+}
+
 app.on('window-all-closed', () => app.quit());
 
 // ---------- window controls ----------
@@ -149,12 +159,15 @@ ipcMain.handle('game:launch', async () => {
   try {
     const launcher = config.launcher || 'steam';
     if (launcher === 'steam') {
+      log('Launching Rocket League via Steam...', 'info');
       await shell.openExternal(`steam://rungameid/${STEAM_APPID}`);
     } else {
+      log('Launching Rocket League via Epic Games...', 'info');
       await shell.openExternal(`com.epicgames.launcher://apps/Sugar?action=launch&silent=true`);
     }
     return { ok: true };
   } catch (e) {
+    log(`Launch failed: ${e}`, 'error');
     return { ok: false, error: String(e) };
   }
 });
@@ -204,6 +217,73 @@ ipcMain.handle('auth:logout', () => {
 });
 
 // ---------- session refresh ----------
+
+// ---------- Diagnostics ----------
+function runDiagCommand(cmd) {
+  return new Promise((resolve) => {
+    execFile('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd], (err, stdout) => {
+      resolve(stdout ? stdout.trim() : '');
+    });
+  });
+}
+
+function sourceDllInfo() {
+  const rootDir = __dirname;
+  const possiblePaths = [
+    path.join(rootDir, 'modules', DLL_FILENAME),
+    path.join(rootDir, DLL_FILENAME),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      return { path: p, hash: sha256File(p) };
+    }
+  }
+  return null;
+}
+
+ipcMain.handle('diag:run', async () => {
+  const results = {
+    vcredist: false,
+    admin: false,
+    integrity: false,
+    arch: process.arch,
+  };
+
+  // 1. Check VC++ Redist (2015-2022 x64)
+  const vcredistCheck = await runDiagCommand(`
+    $kp = 'HKLM:\\SOFTWARE\\Microsoft\\VisualStudio\\14.0\\VC\\Runtimes\\x64'
+    if (Test-Path $kp) {
+      (Get-ItemProperty -Path $kp).Installed
+    } else { 0 }
+  `);
+  results.vcredist = vcredistCheck === '1';
+
+  // 2. Check Admin Rights
+  const adminCheck = await runDiagCommand('([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")');
+  results.admin = adminCheck === 'True';
+
+  // 3. Check Defender Exclusions (Requires Admin)
+  if (results.admin) {
+    const modulesDir = path.join(os.homedir(), 'AppData', 'Roaming', 'AntiBot').toLowerCase();
+    const exclusions = await runDiagCommand('(Get-MpPreference).ExclusionPath');
+    results.defenderExcluded = exclusions.toLowerCase().includes(modulesDir);
+  } else {
+    results.defenderExcluded = false;
+  }
+
+  // 4. Integrity Check
+  const src = sourceDllInfo();
+  const cached = sha256File(cachedDllPath());
+  results.integrity = !!cached && (dllState?.ok && !dllState.error);
+
+  return results;
+});
+
+ipcMain.handle('diag:fix-defender', async () => {
+  const modulesDir = path.join(os.homedir(), 'AppData', 'Roaming', 'AntiBot');
+  await runDiagCommand(`Add-MpPreference -ExclusionPath "${modulesDir}"`);
+  return { ok: true };
+});
 
 function stopRefreshLoop() {
   if (refreshTimer) {
@@ -393,7 +473,9 @@ async function syncDll({ force = false } = {}) {
       return dllState;
     }
 
+    log('Downloading latest module version...', 'info');
     await downloadTo(downloadUrl, dst);
+    log('Module updated successfully.', 'success');
 
     if (wantSha) {
       const gotSha = sha256File(dst);
@@ -516,8 +598,10 @@ ipcMain.handle('inject:run', async (_evt, { pid }) => {
   // Make sure the cached DLL matches the published release before we attach.
   // If the startup sync already finished this is a cheap no-op; if it
   // failed transiently we get a second shot before raising an error.
+  log('Syncing module before attach...', 'info');
   const sync = await syncDll({ force: false });
   if (!sync.ok) {
+    log(`Module sync failed: ${sync.error}`, 'error');
     return { ok: false, error: `dll_sync_failed:${sync.error || 'unknown'}` };
   }
   const dllPath = cachedDllPath();
@@ -525,18 +609,22 @@ ipcMain.handle('inject:run', async (_evt, { pid }) => {
     return { ok: false, error: 'dll_missing_after_sync' };
   }
 
+  log(`Attaching to Rocket League (PID ${pid})...`, 'info');
   const injected = await runInjector(pid, dllPath);
-  if (!injected.ok) return injected;
+  if (!injected.ok) {
+    log(`Injection failed: ${injected.error}`, 'error');
+    return injected;
+  }
 
   try {
+    log('DLL attached. Handing off session...', 'info');
     await pipe.handoff(pid, {
       sessionToken: session.sessionToken,
       apiUrl: API_URL,
     }, { timeoutMs: 10_000 });
+    log('Handoff successful. Mod unlocked.', 'success');
   } catch (e) {
-    // DLL is loaded but never got the session. The DLL will fail its gate
-    // and refuse to unlock. Surface the specific failure so the UI can
-    // explain it rather than showing a generic success.
+    log(`Handoff failed: ${e.message || e}`, 'error');
     return {
       ok: false,
       injected: true,
