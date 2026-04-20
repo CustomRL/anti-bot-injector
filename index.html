@@ -1063,6 +1063,8 @@ function App() {
   function describeDllError(code) {
     if (!code) return 'Could not prepare the module.';
     if (code === 'no_release_published') return 'No release has been published yet. Check back shortly.';
+    if (code === 'dll_in_use') return 'Close Rocket League to install the new module. Your current version still works.';
+    if (code === 'dll_in_use_no_cache') return 'Close Rocket League first so the launcher can download the module.';
     if (code.startsWith('sha256_mismatch')) return 'Downloaded module failed its integrity check. Try again.';
     if (code.startsWith('download_http_')) return 'Could not download the latest module from the server.';
     if (code.startsWith('releases_http_')) return 'Could not reach the release server.';

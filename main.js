@@ -384,8 +384,10 @@ function readDllVersion(p) {
   });
 }
 
-// Downloads a URL to an absolute path. Follows one layer of redirects
-// (enough for Vercel's CDN). Fails if the response is not 2xx.
+// Downloads a URL to an absolute path. Follows a few layers of redirects
+// (R2 presigned URLs come in through a 302 from the API). Throws with a
+// specific `dll_in_use` code when Windows refuses to overwrite the target
+// because Rocket League still has the current DLL mapped into memory.
 function downloadTo(url, dst) {
   return new Promise((resolve, reject) => {
     const tmp = dst + '.part';
@@ -394,6 +396,29 @@ function downloadTo(url, dst) {
       try { file.close(); } catch { /* noop */ }
       try { fs.unlinkSync(tmp); } catch { /* noop */ }
       reject(err);
+    };
+    const finalize = () => {
+      // Try the atomic rename first. If the destination is locked (our DLL
+      // loaded in RL) Windows returns EPERM/EBUSY. Retry via unlink+rename
+      // in case the file is just stale; bail with a clear error otherwise.
+      try {
+        fs.renameSync(tmp, dst);
+        return resolve();
+      } catch (e) {
+        if ((e.code === 'EPERM' || e.code === 'EBUSY') && fs.existsSync(dst)) {
+          try {
+            fs.unlinkSync(dst);
+            fs.renameSync(tmp, dst);
+            return resolve();
+          } catch (e2) {
+            if (e2.code === 'EPERM' || e2.code === 'EBUSY') {
+              return cleanup(new Error('dll_in_use'));
+            }
+            return cleanup(e2);
+          }
+        }
+        return cleanup(e);
+      }
     };
     const get = (target, redirectsLeft) => {
       https
@@ -412,19 +437,12 @@ function downloadTo(url, dst) {
           }
           res.pipe(file);
           file.on('finish', () => {
-            file.close(() => {
-              try {
-                fs.renameSync(tmp, dst);
-                resolve();
-              } catch (e) {
-                cleanup(e);
-              }
-            });
+            file.close(() => finalize());
           });
         })
         .on('error', cleanup);
     };
-    get(url, 3);
+    get(url, 5);
   });
 }
 
@@ -474,8 +492,32 @@ async function syncDll({ force = false } = {}) {
     }
 
     log('Downloading latest module version...', 'info');
-    await downloadTo(downloadUrl, dst);
-    log('Module updated successfully.', 'success');
+    try {
+      await downloadTo(downloadUrl, dst);
+      log('Module updated successfully.', 'success');
+    } catch (e) {
+      const msg = typeof e?.message === 'string' ? e.message : String(e);
+      // If the DLL is loaded in RL right now we can't overwrite it. If we
+      // already have a cached copy, keep using it — the next launch will
+      // pick up the new version once the user closes the game.
+      if (msg === 'dll_in_use') {
+        if (fs.existsSync(dst)) {
+          log('Module update deferred: close Rocket League to install.', 'warn');
+          dllState = {
+            ok: true,
+            downloaded: false,
+            localVersion,
+            serverVersion: wantVersion,
+            error: null,
+            updatePending: true,
+          };
+          return dllState;
+        }
+        throw new Error('dll_in_use_no_cache');
+      }
+      log(`Module download failed: ${msg}`, 'error');
+      throw e;
+    }
 
     if (wantSha) {
       const gotSha = sha256File(dst);
