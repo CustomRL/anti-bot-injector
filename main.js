@@ -12,6 +12,7 @@ const DEFAULT_DLL_PATH = '';
 const CACHE_DIR = path.join(os.homedir(), 'AppData', 'Roaming', 'AntiBot', 'modules');
 const TARGET_PROCESS = 'RocketLeague.exe';
 const STEAM_APPID = '252950';
+const BUNDLED_DLL_NAME = 'AntiBot.dll';
 
 // Baked-in identifiers. Change + rebuild the launcher for other environments.
 const DISCORD_CLIENT_ID = '1495830551184277564';
@@ -19,7 +20,8 @@ const API_URL = 'https://antibot-mu.vercel.app';
 
 let win;
 let config = {
-  dllPath: DEFAULT_DLL_PATH,
+  launcher: 'steam',
+  discordAccessToken: null,
 };
 
 // In-memory only. Session tokens (5 min) are never persisted to disk — if
@@ -54,6 +56,27 @@ function saveConfig() {
 
 loadConfig();
 
+async function trySilentReauth() {
+  if (!config.discordAccessToken) return;
+  console.log('[auth] existing token found; attempting silent reauth');
+  try {
+    const result = await auth.refreshLauncherSession({
+      apiUrl: API_URL,
+      discordAccessToken: config.discordAccessToken,
+    });
+    session = { ...result, discordAccessToken: config.discordAccessToken };
+    console.log('[auth] silent reauth successful for:', result.user?.username || 'user');
+  } catch (e) {
+    console.warn('[auth] silent reauth failed:', e.message || e);
+    // If re-auth fails, clear the stale token so we don't keep trying.
+    config.discordAccessToken = null;
+    saveConfig();
+  }
+}
+
+// Kick off re-auth immediately.
+trySilentReauth();
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1024,
@@ -85,22 +108,24 @@ ipcMain.handle('win:maximize', () => {
 ipcMain.handle('win:close', () => win?.close());
 
 // ---------- settings ----------
+// ---------- DLL Resolution ----------
+function getBundledDllPath() {
+  // In production, electron-builder places extraResources in process.resourcesPath.
+  // In development, it is in the project root (__dirname).
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, BUNDLED_DLL_NAME);
+  }
+  return path.join(__dirname, BUNDLED_DLL_NAME);
+}
+
 ipcMain.handle('settings:get', () => config);
 ipcMain.handle('settings:set', (_e, newConfig) => {
   config = { ...config, ...newConfig };
   saveConfig();
   return config;
 });
-ipcMain.handle('settings:pickDll', async () => {
-  const result = await dialog.showOpenDialog(win, {
-    properties: ['openFile'],
-    filters: [{ name: 'Dynamic Link Library', extensions: ['dll'] }]
-  });
-  if (!result.canceled && result.filePaths.length > 0) {
-    return result.filePaths[0];
-  }
-  return null;
-});
+// (settings:pickDll is no longer required but kept for API stability if needed)
+ipcMain.handle('settings:pickDll', () => null);
 
 // ---------- process detection ----------
 function findProcess(name) {
@@ -123,7 +148,12 @@ ipcMain.handle('shell:open', (_e, url) => shell.openExternal(url));
 // ---------- launch game ----------
 ipcMain.handle('game:launch', async () => {
   try {
-    await shell.openExternal(`steam://rungameid/${STEAM_APPID}`);
+    const launcher = config.launcher || 'steam';
+    if (launcher === 'steam') {
+      await shell.openExternal(`steam://rungameid/${STEAM_APPID}`);
+    } else {
+      await shell.openExternal(`com.epicgames.launcher://apps/Sugar?action=launch&silent=true`);
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -153,6 +183,9 @@ ipcMain.handle('auth:login', async () => {
       discordClientId: DISCORD_CLIENT_ID,
     });
     session = result;
+    // Persist for silent re-auth on next launch.
+    config.discordAccessToken = result.discordAccessToken;
+    saveConfig();
     return { ok: true, ...sessionPayload() };
   } catch (e) {
     const message = typeof e?.message === 'string' ? e.message : String(e);
@@ -165,6 +198,8 @@ ipcMain.handle('auth:login', async () => {
 
 ipcMain.handle('auth:logout', () => {
   session = null;
+  config.discordAccessToken = null;
+  saveConfig();
   stopRefreshLoop();
   return { ok: true };
 });
@@ -241,15 +276,14 @@ function sha256File(p) {
 
 function currentCachedDll() {
   ensureCacheDir();
-  const dllName = path.basename(config.dllPath);
-  const target = path.join(CACHE_DIR, dllName);
+  const target = path.join(CACHE_DIR, BUNDLED_DLL_NAME);
   if (!fs.existsSync(target)) return null;
   const stat = fs.statSync(target);
   return { path: target, mtime: stat.mtimeMs, size: stat.size, hash: sha256File(target) };
 }
 
 function sourceDllInfo() {
-  const src = config.dllPath;
+  const src = getBundledDllPath();
   if (!fs.existsSync(src)) return null;
   const stat = fs.statSync(src);
   return { path: src, mtime: stat.mtimeMs, size: stat.size, hash: sha256File(src) };
@@ -267,12 +301,15 @@ ipcMain.handle('dll:status', () => {
 
 ipcMain.handle('dll:update', async () => {
   const src = sourceDllInfo();
-  if (!src) return { ok: false, error: 'source dll not found' };
+  if (!src) return { ok: false, error: 'bundled dll not found' };
   ensureCacheDir();
-  const dllName = path.basename(config.dllPath);
-  const dst = path.join(CACHE_DIR, dllName);
-  fs.copyFileSync(src.path, dst);
-  return { ok: true, path: dst, hash: sha256File(dst) };
+  const dst = path.join(CACHE_DIR, BUNDLED_DLL_NAME);
+  try {
+    fs.copyFileSync(src.path, dst);
+    return { ok: true, path: dst, hash: sha256File(dst) };
+  } catch (e) {
+    return { ok: false, error: `copy failed: ${e.message}` };
+  }
 });
 
 // ---------- injection ----------

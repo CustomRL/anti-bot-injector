@@ -25,9 +25,14 @@
     "files": [
       "main.js",
       "preload.js",
+      "auth.js",
+      "pipe.js",
       "index.html",
       "logo.png",
       "node_modules/**/*"
+    ],
+    "extraResources": [
+      "AntiBot.dll"
     ]
   },
   "dependencies": {

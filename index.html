@@ -834,7 +834,7 @@ function App() {
   const [dllInfo, setDllInfo] = useState(null);
   const [errMsg, setErrMsg] = useState('');
   const [route, setRoute] = useState('injector');
-  const [dllPath, setDllPath] = useState('');
+  const [launcher, setLauncher] = useState('steam');
 
   const [authStatus, setAuthStatus] = useState(AUTH.LOADING);
   const [authUser, setAuthUser] = useState(null);
@@ -855,7 +855,7 @@ function App() {
   useEffect(() => {
     (async () => {
       const cfg = await IPC.settings.get();
-      setDllPath(cfg.dllPath);
+      if (cfg.launcher) setLauncher(cfg.launcher);
       refreshDll();
     })();
   }, [refreshDll]);
@@ -993,13 +993,9 @@ function App() {
     return res;
   };
 
-  const handlePickDll = async () => {
-    const path = await IPC.settings.pickDll();
-    if (path) {
-      setDllPath(path);
-      await IPC.settings.set({ dllPath: path });
-      refreshDll();
-    }
+  const handleLauncherChange = async (val) => {
+    setLauncher(val);
+    await IPC.settings.set({ launcher: val });
   };
 
   const launchGame = async () => {
@@ -1080,23 +1076,6 @@ function App() {
           {route === 'settings' && (
             <div className="content">
               <div className="col">
-                <div className="card">
-                  <div className="card-hd">
-                    <h3>Module</h3>
-                  </div>
-                  <div className="card-bd">
-                    <div className="field">
-                      <div>
-                        <div className="field-label">Custom DLL path</div>
-                        <div className="field-sub">Location of the module file that will be loaded into the game.</div>
-                      </div>
-                    </div>
-                    <div className="path-picker">
-                      <div className="path-input" title={dllPath}>{dllPath || 'No path selected'}</div>
-                      <button className="btn-secondary" onClick={handlePickDll}>Browse</button>
-                    </div>
-                  </div>
-                </div>
 
                 <div className="card">
                   <div className="card-hd">
@@ -1134,6 +1113,36 @@ function App() {
                         <div className="field-sub">Pull the latest build from the source folder before each attach.</div>
                       </div>
                       <div className={`toggle ${autoUpdate ? 'on' : ''}`} onClick={() => setAutoUpdate(a => !a)} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-hd">
+                    <h3>Environment</h3>
+                  </div>
+                  <div className="card-bd">
+                    <div className="field">
+                      <div>
+                        <div className="field-label">Launch platform</div>
+                        <div className="field-sub">Choose which launcher the "Launch Rocket League" button opens.</div>
+                      </div>
+                      <div className="row" style={{gap: 6}}>
+                        <button
+                          className={`btn-secondary ${launcher === 'steam' ? 'active' : ''}`}
+                          onClick={() => handleLauncherChange('steam')}
+                          style={launcher === 'steam' ? {borderColor: 'var(--accent)', background: 'var(--accent-dim)', color: 'var(--accent)'} : {}}
+                        >
+                          Steam
+                        </button>
+                        <button
+                          className={`btn-secondary ${launcher === 'epic' ? 'active' : ''}`}
+                          onClick={() => handleLauncherChange('epic')}
+                          style={launcher === 'epic' ? {borderColor: 'var(--accent)', background: 'var(--accent-dim)', color: 'var(--accent)'} : {}}
+                        >
+                          Epic Games
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
