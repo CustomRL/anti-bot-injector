@@ -2,17 +2,21 @@ const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const https = require('https');
+const crypto = require('crypto');
 const { execFile, spawn } = require('child_process');
 
 const auth = require('./auth');
 const pipe = require('./pipe');
 
 const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
-const DEFAULT_DLL_PATH = '';
 const CACHE_DIR = path.join(os.homedir(), 'AppData', 'Roaming', 'AntiBot', 'modules');
 const TARGET_PROCESS = 'RocketLeague.exe';
 const STEAM_APPID = '252950';
-const BUNDLED_DLL_NAME = 'AntiBot.dll';
+const DLL_FILENAME = 'AntiBot.dll';
+// The launcher downloads the current DLL from the URL returned by
+// /api/releases/current (which proxies an R2 object). The cached copy
+// lives at %APPDATA%\AntiBot\modules\AntiBot.dll.
 
 // Baked-in identifiers. Change + rebuild the launcher for other environments.
 const DISCORD_CLIENT_ID = '1495830551184277564';
@@ -96,7 +100,13 @@ function createWindow() {
   win.loadFile('index.html');
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  // Kick off the release sync right away so the DLL is ready by the time
+  // the user lands on the injector screen. Silent; state is exposed via
+  // the dll:status IPC handler.
+  syncDll({ force: false }).catch(() => { /* surfaced in dllState */ });
+});
 app.on('window-all-closed', () => app.quit());
 
 // ---------- window controls ----------
@@ -106,17 +116,6 @@ ipcMain.handle('win:maximize', () => {
   win.isMaximized() ? win.unmaximize() : win.maximize();
 });
 ipcMain.handle('win:close', () => win?.close());
-
-// ---------- settings ----------
-// ---------- DLL Resolution ----------
-function getBundledDllPath() {
-  // In production, electron-builder places extraResources in process.resourcesPath.
-  // In development, it is in the project root (__dirname).
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, BUNDLED_DLL_NAME);
-  }
-  return path.join(__dirname, BUNDLED_DLL_NAME);
-}
 
 ipcMain.handle('settings:get', () => config);
 ipcMain.handle('settings:set', (_e, newConfig) => {
@@ -262,55 +261,173 @@ function startRefreshLoop(pid) {
   refreshTimer = setInterval(refreshAndPush, 4 * 60 * 1000);
 }
 
-// ---------- dll cache / update ----------
+// ---------- dll cache / versioning / download ----------
+
 function ensureCacheDir() {
   if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
 }
 
 function sha256File(p) {
-  const crypto = require('crypto');
   if (!fs.existsSync(p)) return null;
   const buf = fs.readFileSync(p);
   return crypto.createHash('sha256').update(buf).digest('hex');
 }
 
-function currentCachedDll() {
-  ensureCacheDir();
-  const target = path.join(CACHE_DIR, BUNDLED_DLL_NAME);
-  if (!fs.existsSync(target)) return null;
-  const stat = fs.statSync(target);
-  return { path: target, mtime: stat.mtimeMs, size: stat.size, hash: sha256File(target) };
+function cachedDllPath() {
+  return path.join(CACHE_DIR, DLL_FILENAME);
 }
 
-function sourceDllInfo() {
-  const src = getBundledDllPath();
-  if (!fs.existsSync(src)) return null;
-  const stat = fs.statSync(src);
-  return { path: src, mtime: stat.mtimeMs, size: stat.size, hash: sha256File(src) };
+// Strips trailing ".0" segments so "1.0.3" and "1.0.3.0" compare equal.
+// Admins type the version they care about; the PE FileVersion is often
+// padded out to four parts.
+function normalizeVersion(v) {
+  if (!v) return '';
+  const parts = String(v).trim().split('.');
+  while (parts.length > 1 && parts[parts.length - 1] === '0') parts.pop();
+  return parts.join('.');
 }
 
-ipcMain.handle('dll:status', () => {
-  const src = sourceDllInfo();
-  const cached = currentCachedDll();
-  return {
-    source: src,
-    cached,
-    updateAvailable: !!src && (!cached || src.hash !== cached.hash),
-  };
-});
+// Reads the FileVersion metadata off a PE file via PowerShell. Returns
+// null if the file doesn't exist or the read failed.
+function readDllVersion(p) {
+  return new Promise((resolve) => {
+    if (!fs.existsSync(p)) return resolve(null);
+    const script = `(Get-Item -LiteralPath '${p.replace(/'/g, "''")}').VersionInfo.FileVersion`;
+    const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { windowsHide: true });
+    let out = '';
+    ps.stdout.on('data', (d) => (out += d.toString()));
+    ps.on('close', (code) => {
+      if (code !== 0) return resolve(null);
+      const trimmed = out.trim();
+      resolve(trimmed.length > 0 ? trimmed : null);
+    });
+  });
+}
 
-ipcMain.handle('dll:update', async () => {
-  const src = sourceDllInfo();
-  if (!src) return { ok: false, error: 'bundled dll not found' };
+// Downloads a URL to an absolute path. Follows one layer of redirects
+// (enough for Vercel's CDN). Fails if the response is not 2xx.
+function downloadTo(url, dst) {
+  return new Promise((resolve, reject) => {
+    const tmp = dst + '.part';
+    const file = fs.createWriteStream(tmp);
+    const cleanup = (err) => {
+      try { file.close(); } catch { /* noop */ }
+      try { fs.unlinkSync(tmp); } catch { /* noop */ }
+      reject(err);
+    };
+    const get = (target, redirectsLeft) => {
+      https
+        .get(target, (res) => {
+          if (
+            (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307) &&
+            res.headers.location &&
+            redirectsLeft > 0
+          ) {
+            res.resume();
+            return get(res.headers.location, redirectsLeft - 1);
+          }
+          if (res.statusCode !== 200) {
+            res.resume();
+            return cleanup(new Error(`download_http_${res.statusCode}`));
+          }
+          res.pipe(file);
+          file.on('finish', () => {
+            file.close(() => {
+              try {
+                fs.renameSync(tmp, dst);
+                resolve();
+              } catch (e) {
+                cleanup(e);
+              }
+            });
+          });
+        })
+        .on('error', cleanup);
+    };
+    get(url, 3);
+  });
+}
+
+async function fetchCurrentRelease() {
+  const res = await fetch(`${API_URL}/api/releases/current`, {
+    headers: { 'Accept': 'application/json' },
+  });
+  if (!res.ok) throw new Error(`releases_http_${res.status}`);
+  return res.json();
+}
+
+// Last-known state for the renderer. Populated by syncDll. Shape:
+//   { ok, downloaded, localVersion, serverVersion, error, releaseAt }
+let dllState = { ok: false, error: 'pending', localVersion: null, serverVersion: null };
+
+// Returns true if the cached DLL is present and matches the latest release.
+// Downloads a fresh copy otherwise. Silent on success; any failure goes in
+// dllState.error so the UI can show it.
+async function syncDll({ force = false } = {}) {
   ensureCacheDir();
-  const dst = path.join(CACHE_DIR, BUNDLED_DLL_NAME);
+  const dst = cachedDllPath();
   try {
-    fs.copyFileSync(src.path, dst);
-    return { ok: true, path: dst, hash: sha256File(dst) };
+    const release = await fetchCurrentRelease();
+    const wantVersion = release?.dll?.version ?? null;
+    const wantSha = release?.dll?.sha256 ?? null;
+    const downloadUrl = release?.dll?.downloadUrl ?? null;
+    const localVersion = await readDllVersion(dst);
+
+    if (!downloadUrl) {
+      throw new Error('no_release_published');
+    }
+
+    const needDownload =
+      force ||
+      !fs.existsSync(dst) ||
+      (wantVersion && normalizeVersion(localVersion) !== normalizeVersion(wantVersion));
+
+    if (!needDownload) {
+      dllState = {
+        ok: true,
+        downloaded: false,
+        localVersion,
+        serverVersion: wantVersion,
+        error: null,
+      };
+      return dllState;
+    }
+
+    await downloadTo(downloadUrl, dst);
+
+    if (wantSha) {
+      const gotSha = sha256File(dst);
+      if (gotSha !== wantSha.toLowerCase()) {
+        try { fs.unlinkSync(dst); } catch { /* noop */ }
+        throw new Error(`sha256_mismatch:${gotSha}`);
+      }
+    }
+
+    const newLocalVersion = await readDllVersion(dst);
+    dllState = {
+      ok: true,
+      downloaded: true,
+      localVersion: newLocalVersion,
+      serverVersion: wantVersion,
+      error: null,
+    };
+    return dllState;
   } catch (e) {
-    return { ok: false, error: `copy failed: ${e.message}` };
+    const msg = typeof e?.message === 'string' ? e.message : String(e);
+    dllState = {
+      ok: false,
+      downloaded: false,
+      localVersion: await readDllVersion(dst).catch(() => null),
+      serverVersion: null,
+      error: msg,
+    };
+    return dllState;
   }
-});
+}
+
+ipcMain.handle('dll:status', () => dllState);
+ipcMain.handle('dll:sync', () => syncDll({ force: false }));
+ipcMain.handle('dll:update', () => syncDll({ force: true }));
 
 // ---------- injection ----------
 function quoteForPs(s) {
@@ -390,10 +507,22 @@ function runInjector(pid, dllPath) {
   });
 }
 
-ipcMain.handle('inject:run', async (_evt, { pid, dllPath }) => {
+ipcMain.handle('inject:run', async (_evt, { pid }) => {
   const status = sessionPayload();
   if (!status.authenticated) {
     return { ok: false, error: 'not_authenticated' };
+  }
+
+  // Make sure the cached DLL matches the published release before we attach.
+  // If the startup sync already finished this is a cheap no-op; if it
+  // failed transiently we get a second shot before raising an error.
+  const sync = await syncDll({ force: false });
+  if (!sync.ok) {
+    return { ok: false, error: `dll_sync_failed:${sync.error || 'unknown'}` };
+  }
+  const dllPath = cachedDllPath();
+  if (!fs.existsSync(dllPath)) {
+    return { ok: false, error: 'dll_missing_after_sync' };
   }
 
   const injected = await runInjector(pid, dllPath);

@@ -858,6 +858,11 @@ function App() {
       if (cfg.launcher) setLauncher(cfg.launcher);
       refreshDll();
     })();
+    // Poll the DLL sync state for a bit after startup so the "Module v…"
+    // strip updates once the background sync completes.
+    const id = setInterval(refreshDll, 1500);
+    const stop = setTimeout(() => clearInterval(id), 15000);
+    return () => { clearInterval(id); clearTimeout(stop); };
   }, [refreshDll]);
 
   // Hydrate auth state on mount and re-check after login/logout. The main
@@ -937,17 +942,12 @@ function App() {
     setErrMsg('');
     setState(STATES.SCANNING);
 
-    let info = await refreshDll();
-    if (autoUpdate && info?.updateAvailable) {
-      await runUpdate(false);
-      info = await refreshDll();
-    }
-    if (!info?.cached && info?.source) {
-      await IPC.dllUpdate();
-      info = await refreshDll();
-    }
-    if (!info?.cached) {
-      setErrMsg('DLL not available. Build or select a valid module first.');
+    // Ask the main process to confirm the cached DLL matches the latest
+    // published release. Downloads in the background if not.
+    const info = await IPC.dllSync();
+    setDllInfo(info);
+    if (!info?.ok) {
+      setErrMsg(describeDllError(info?.error));
       setState(STATES.ERROR);
       return;
     }
@@ -963,10 +963,9 @@ function App() {
   const runInjection = async () => {
     setInjectProgress(0);
     setState(STATES.INJECTING);
-    const info = dllInfo?.cached ? dllInfo : await refreshDll();
-    const dllPathToInject = info?.cached?.path;
-    if (!proc || !dllPathToInject) { setErrMsg('Missing process or DLL.'); setState(STATES.ERROR); return; }
-    const result = await IPC.inject(proc.pid, dllPathToInject);
+    if (!proc) { setErrMsg('Rocket League is not running.'); setState(STATES.ERROR); return; }
+    // Main process picks the cached DLL path from its own sync state.
+    const result = await IPC.inject(proc.pid);
     if (result.ok) {
       setInjectProgress(100);
       injectedPidRef.current = proc.pid;
@@ -985,13 +984,23 @@ function App() {
     const res = await IPC.dllUpdate();
     clearInterval(tickId);
     setUpdateProgress(100);
-    await refreshDll();
+    setDllInfo(res);
     setTimeout(() => {
       setUpdateProgress(0);
       if (updateState) setState(STATES.IDLE);
     }, 400);
     return res;
   };
+
+  // Map main-process error codes to human copy for the error card.
+  function describeDllError(code) {
+    if (!code) return 'Could not prepare the module.';
+    if (code === 'no_release_published') return 'No release has been published yet. Check back shortly.';
+    if (code.startsWith('sha256_mismatch')) return 'Downloaded module failed its integrity check. Try again.';
+    if (code.startsWith('download_http_')) return 'Could not download the latest module from the server.';
+    if (code.startsWith('releases_http_')) return 'Could not reach the release server.';
+    return `Module update failed: ${code}`;
+  }
 
   const handleLauncherChange = async (val) => {
     setLauncher(val);
@@ -1030,7 +1039,7 @@ function App() {
     setAuthUser(null);
   };
 
-  const canInject = !!proc && (state === STATES.IDLE || state === STATES.ERROR) && !!dllInfo?.cached;
+  const canInject = !!proc && (state === STATES.IDLE || state === STATES.ERROR);
   const isBusy = [STATES.SCANNING, STATES.WAITING, STATES.INJECTING, STATES.UPDATING].includes(state);
   const isInjected = state === STATES.INJECTED;
   const status = STATUS_COPY[state];
@@ -1227,8 +1236,24 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
   if (state === STATES.INJECTED) displaySub = 'Module is running in Rocket League';
 
   const isUpdating = state === STATES.UPDATING;
-  const src = dllInfo?.source;
-  const available = !!dllInfo?.updateAvailable;
+  const info = dllInfo || {};
+  const hasRelease = Boolean(info.serverVersion);
+  const hasLocal = Boolean(info.localVersion);
+  const versionLabel = info.serverVersion
+    ? `v${info.serverVersion}`
+    : hasLocal
+      ? `v${info.localVersion}`
+      : '';
+  let moduleTag = null;
+  if (!info.ok && info.error) {
+    moduleTag = <span className="tag-pill err">Update failed</span>;
+  } else if (!hasRelease && !hasLocal) {
+    moduleTag = <span className="tag-pill">No module yet</span>;
+  } else if (info.downloaded) {
+    moduleTag = <span className="tag-pill accent">Updated</span>;
+  } else {
+    moduleTag = <span className="tag-pill">Up to date</span>;
+  }
 
   let btn;
   if (isInjected) {
@@ -1283,10 +1308,8 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
 
       <div className="status-footer">
         <div className="status-footer-hd">
-          <h4>Module updates</h4>
-          {!src && <span className="tag-pill err">No source file</span>}
-          {src && available && !isUpdating && <span className="tag-pill accent">Update ready</span>}
-          {src && !available && !isUpdating && <span className="tag-pill">Up to date</span>}
+          <h4>Module {versionLabel}</h4>
+          {moduleTag}
         </div>
 
         {isUpdating && (
@@ -1294,19 +1317,23 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
             <div className="update-progress">
               <div className="update-progress-fill" style={{width: `${updateProgress}%`}} />
             </div>
-            <div className="hint" style={{marginTop:6}}>Copying the latest build, {updateProgress.toFixed(0)}%</div>
+            <div className="hint" style={{marginTop:6}}>Downloading the latest build, {updateProgress.toFixed(0)}%</div>
           </div>
         )}
+
+        {info.error && !isUpdating ? (
+          <div className="hint" style={{color: 'var(--red)'}}>{info.error}</div>
+        ) : null}
 
         <div style={{display: 'flex', gap: 10, marginTop: 4}}>
           <button
             className="btn-secondary"
             style={{flex: 1}}
-            disabled={!src || isUpdating || !available}
+            disabled={isUpdating}
             onClick={onUpdate}
           >
-            <Icon d={available ? I.download : I.check} size={13} />
-            {isUpdating ? 'Updating...' : available ? 'Update module' : 'Up to date'}
+            <Icon d={I.download} size={13} />
+            {isUpdating ? 'Updating...' : 'Check for update'}
           </button>
           <button
             className="btn-secondary"

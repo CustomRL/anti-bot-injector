@@ -30,9 +30,6 @@
       "index.html",
       "logo.png",
       "node_modules/**/*"
-    ],
-    "extraResources": [
-      "AntiBot.dll"
     ]
   },
   "dependencies": {

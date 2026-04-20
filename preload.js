@@ -19,7 +19,8 @@ contextBridge.exposeInMainWorld('api', {
   findProcess: () => ipcRenderer.invoke('proc:find'),
   launchGame: () => ipcRenderer.invoke('game:launch'),
   dllStatus: () => ipcRenderer.invoke('dll:status'),
+  dllSync: () => ipcRenderer.invoke('dll:sync'),
   dllUpdate: () => ipcRenderer.invoke('dll:update'),
-  inject: (pid, dllPath) => ipcRenderer.invoke('inject:run', { pid, dllPath }),
+  inject: (pid) => ipcRenderer.invoke('inject:run', { pid }),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
 });
