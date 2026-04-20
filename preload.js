@@ -11,6 +11,11 @@ contextBridge.exposeInMainWorld('api', {
     set: (config) => ipcRenderer.invoke('settings:set', config),
     pickDll: () => ipcRenderer.invoke('settings:pickDll'),
   },
+  auth: {
+    status: () => ipcRenderer.invoke('auth:status'),
+    login: () => ipcRenderer.invoke('auth:login'),
+    logout: () => ipcRenderer.invoke('auth:logout'),
+  },
   findProcess: () => ipcRenderer.invoke('proc:find'),
   launchGame: () => ipcRenderer.invoke('game:launch'),
   dllStatus: () => ipcRenderer.invoke('dll:status'),

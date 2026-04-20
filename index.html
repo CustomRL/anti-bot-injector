@@ -5,7 +5,7 @@
 <title>Anti Bot Injector</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
     --bg: #0d0f13;
@@ -23,8 +23,8 @@
     --green: oklch(0.78 0.13 150);
     --amber: oklch(0.82 0.13 75);
     --red: oklch(0.70 0.18 25);
-    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -32,9 +32,11 @@
     background: #05070a;
     color: var(--text);
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: 15px;
+    line-height: 1.55;
     letter-spacing: -0.005em;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     height: 100vh;
     overflow: hidden;
   }
@@ -48,15 +50,16 @@
     border: 1px solid #1a1f28;
     display: flex;
     flex-direction: column;
+    position: relative;
   }
   .titlebar {
-    height: 36px;
+    height: 40px;
     background: #0a0c10;
     border-bottom: 1px solid var(--border-soft);
     display: flex;
     align-items: center;
-    padding: 0 0 0 12px;
-    gap: 12px;
+    padding: 0 0 0 16px;
+    gap: 14px;
     user-select: none;
     flex-shrink: 0;
     -webkit-app-region: drag;
@@ -64,23 +67,22 @@
   .titlebar-brand {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
+    gap: 10px;
+    font-size: 13px;
     color: var(--text-dim);
     font-weight: 500;
   }
   .titlebar-brand-mark {
-    width: 16px; height: 16px;
-    border-radius: 3px;
+    width: 18px; height: 18px;
+    border-radius: 4px;
     object-fit: contain;
     display: block;
   }
   .titlebar-brand strong { color: var(--text); font-weight: 600; letter-spacing: -0.01em; }
-  .titlebar-brand .sep { color: var(--text-mute); }
   .titlebar-spacer { flex: 1; }
   .win-controls { display: flex; -webkit-app-region: no-drag; }
   .win-btn {
-    width: 46px; height: 36px;
+    width: 46px; height: 40px;
     display: grid; place-items: center;
     color: var(--text-mute);
     cursor: pointer;
@@ -99,26 +101,25 @@
   .sidebar {
     background: #0a0c10;
     border-right: 1px solid var(--border-soft);
-    padding: 16px 10px;
+    padding: 28px 14px 20px;
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
   .side-label {
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
+    font-size: 11px;
+    letter-spacing: 0;
     color: var(--text-mute);
-    padding: 10px 10px 6px;
-    font-weight: 600;
+    padding: 6px 12px 12px;
+    font-weight: 500;
   }
   .nav {
-    display: flex; align-items: center; gap: 10px;
-    padding: 7px 10px;
-    border-radius: 5px;
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px;
+    border-radius: 7px;
     color: var(--text-dim);
     cursor: pointer;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 500;
     transition: background 120ms, color 120ms;
   }
@@ -137,50 +138,52 @@
   }
 
   .page-head {
-    padding: 20px 24px 16px;
+    padding: 36px 40px 28px;
     border-bottom: 1px solid var(--border-soft);
     display: flex;
     align-items: flex-end;
     justify-content: space-between;
-    gap: 16px;
+    gap: 20px;
     flex-shrink: 0;
   }
   .page-head h1 {
     margin: 0;
-    font-size: 17px;
+    font-size: 24px;
     font-weight: 600;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.025em;
   }
   .page-head p {
-    margin: 3px 0 0;
-    font-size: 12px;
+    margin: 8px 0 0;
+    font-size: 13.5px;
     color: var(--text-dim);
+    line-height: 1.5;
   }
   .proc-pill {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 5px 10px;
+    gap: 9px;
+    padding: 7px 14px 7px 12px;
     background: var(--panel);
     border: 1px solid var(--border);
     border-radius: 999px;
-    font-size: 11.5px;
-    font-family: var(--font-mono);
+    font-size: 12px;
+    font-family: var(--font-ui);
     color: var(--text-dim);
+    font-weight: 500;
   }
   .proc-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-mute); }
   .proc-pill.running .dot { background: var(--green); box-shadow: 0 0 6px oklch(0.78 0.13 150 / 0.6); }
   .proc-pill.running { color: var(--text); }
 
   .content {
-    padding: 20px 24px;
+    padding: 40px 40px 48px;
     flex: 1;
     overflow-y: auto;
     display: grid;
     grid-template-columns: 1fr;
-    gap: 20px;
+    gap: 28px;
     align-items: start;
-    max-width: 620px;
+    max-width: 720px;
     margin: 0 auto;
     width: 100%;
   }
@@ -189,25 +192,25 @@
   .content .col > .card > .card-bd { flex: 1; display: flex; flex-direction: column; }
   .content.single { grid-template-columns: 1fr; max-width: 720px; }
   .about-card {
-    padding: 32px 28px;
+    padding: 56px 40px 48px;
     background: var(--panel);
     border: 1px solid var(--border-soft);
-    border-radius: 10px;
+    border-radius: 14px;
     text-align: center;
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
   }
-  .about-logo { width: 56px; height: 56px; object-fit: contain; margin-bottom: 10px; }
-  .about-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  .about-logo { width: 64px; height: 64px; object-fit: contain; margin-bottom: 18px; }
+  .about-title { font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
   .about-version {
-    font-family: var(--font-mono);
-    font-size: 11.5px;
+    font-family: var(--font-ui);
+    font-size: 13px;
     color: var(--text-mute);
-    margin-bottom: 18px;
+    margin-bottom: 28px;
   }
-  .about-credits { font-size: 13px; color: var(--text-dim); }
+  .about-credits { font-size: 14px; color: var(--text-dim); line-height: 1.6; }
   .about-credits a {
     color: var(--accent);
     text-decoration: none;
@@ -225,12 +228,11 @@
   .card {
     background: var(--panel);
     border: 1px solid var(--border-soft);
-    border-radius: 8px;
+    border-radius: 12px;
     overflow: hidden;
   }
   .card-hd {
-    padding: 11px 14px;
-    border-bottom: 1px solid var(--border-soft);
+    padding: 18px 24px 14px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -238,20 +240,19 @@
   }
   .card-hd h3 {
     margin: 0;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-dim);
+    font-size: 13.5px;
+    letter-spacing: -0.005em;
+    color: var(--text);
     font-weight: 600;
   }
-  .card-bd { padding: 14px; }
+  .card-bd { padding: 8px 24px 24px; }
 
   .status-card {
     position: relative;
-    padding: 20px 22px;
+    padding: 32px 32px 28px;
     background: linear-gradient(180deg, #161a22 0%, #13161d 100%);
     border: 1px solid var(--border-soft);
-    border-radius: 10px;
+    border-radius: 14px;
     overflow: hidden;
   }
   .status-card::before {
@@ -267,30 +268,42 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 18px;
+    margin-bottom: 28px;
   }
   .status-label {
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
+    font-size: 11px;
+    letter-spacing: 0.02em;
     color: var(--text-mute);
-    font-weight: 600;
+    font-weight: 500;
   }
   .status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 4px 9px;
-    background: rgba(255,255,255,0.03);
+    gap: 8px;
+    padding: 5px 14px 5px 12px;
+    background: rgba(255,255,255,0.02);
     border: 1px solid var(--border);
     border-radius: 999px;
-    font-family: var(--font-mono);
-    font-size: 10.5px;
+    font-family: var(--font-ui);
+    font-size: 11.5px;
     color: var(--text-dim);
+    font-weight: 500;
   }
-  .status-value { display: flex; align-items: center; gap: 14px; }
+  .status-badge .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-mute);
+    transition: background 240ms, box-shadow 240ms;
+  }
+  .status-scanning .status-badge .status-dot { background: var(--amber); box-shadow: 0 0 6px oklch(0.82 0.13 75 / 0.6); }
+  .status-waiting  .status-badge .status-dot { background: var(--amber); box-shadow: 0 0 6px oklch(0.82 0.13 75 / 0.5); }
+  .status-injecting .status-badge .status-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+  .status-injected .status-badge .status-dot { background: var(--green); box-shadow: 0 0 6px oklch(0.78 0.13 150 / 0.7); }
+  .status-error    .status-badge .status-dot { background: var(--red);   box-shadow: 0 0 6px oklch(0.70 0.18 25 / 0.5); }
+  .status-updating .status-badge .status-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent-glow); }
+  .status-value { display: flex; align-items: center; gap: 18px; }
   .status-indicator {
-    width: 44px; height: 44px;
+    width: 52px; height: 52px;
     border-radius: 50%;
     position: relative;
     display: grid; place-items: center;
@@ -325,19 +338,20 @@
 
   .status-text h2 {
     margin: 0;
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.028em;
   }
   .status-text p {
-    margin: 2px 0 0;
-    font-size: 12.5px;
+    margin: 6px 0 0;
+    font-size: 14px;
     color: var(--text-dim);
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
+    line-height: 1.45;
   }
 
   .status-bar {
-    margin-top: 18px;
+    margin-top: 28px;
     height: 3px;
     background: #0c0f14;
     border-radius: 2px;
@@ -361,24 +375,24 @@
   @keyframes sweep { 0% { left: -40%; } 100% { left: 100%; } }
 
   .inject-btn {
-    margin-top: 18px;
+    margin-top: 28px;
     width: 100%;
-    padding: 13px 18px;
+    padding: 15px 20px;
     background: var(--accent);
     color: #07141a;
     border: none;
-    border-radius: 7px;
+    border-radius: 10px;
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
-    letter-spacing: 0.02em;
+    letter-spacing: -0.005em;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 10px;
     transition: transform 80ms, box-shadow 200ms, background 200ms, opacity 200ms;
-    box-shadow: 0 0 0 1px oklch(0.78 0.12 210 / 0.3), 0 8px 20px -8px var(--accent-glow);
+    box-shadow: 0 0 0 1px oklch(0.78 0.12 210 / 0.3), 0 10px 24px -10px var(--accent-glow);
   }
   .inject-btn:hover:not(:disabled) {
     background: oklch(0.82 0.12 210);
@@ -421,18 +435,198 @@
   .btn-secondary:hover:not(:disabled) { background: #242a34; border-color: #2e3542; }
   .btn-secondary:disabled { opacity: 0.45; cursor: not-allowed; }
 
+  .gate-backdrop {
+    position: absolute;
+    inset: 40px 0 0 0;
+    background: rgba(5, 7, 10, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    overflow-y: auto;
+  }
+  .gate-card {
+    width: 100%;
+    max-width: 440px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 44px 40px 36px;
+    box-shadow: 0 24px 72px -24px rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 28px;
+  }
+  .gate-head {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+  }
+  .gate-head img { width: 56px; height: 56px; object-fit: contain; margin-bottom: 10px; }
+  .gate-title { font-size: 22px; font-weight: 600; letter-spacing: -0.025em; }
+  .gate-sub   { font-size: 14px; color: var(--text-dim); line-height: 1.5; }
+  .gate-fields { display: flex; flex-direction: column; gap: 10px; }
+  .gate-fields.collapsed { display: none; }
+  .gate-field-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-mute);
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .gate-input {
+    width: 100%;
+    padding: 9px 11px;
+    background: #0c0f14;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    outline: none;
+    transition: border-color 120ms;
+  }
+  .gate-input:focus { border-color: var(--accent); }
+  .gate-config-toggle {
+    background: none;
+    border: none;
+    color: var(--text-mute);
+    font-size: 11.5px;
+    cursor: pointer;
+    align-self: center;
+    padding: 2px 6px;
+    font-family: inherit;
+  }
+  .gate-config-toggle:hover { color: var(--text-dim); }
+  .gate-login-btn {
+    width: 100%;
+    padding: 14px 18px;
+    background: #5865f2;
+    border: 1px solid #5865f2;
+    border-radius: 10px;
+    color: #fff;
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: background 120ms, border-color 120ms, opacity 120ms;
+  }
+  .gate-login-btn:hover:not(:disabled) { background: #4752c4; border-color: #4752c4; }
+  .gate-login-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+  .gate-error {
+    padding: 10px 12px;
+    background: rgba(220, 80, 80, 0.08);
+    border: 1px solid rgba(220, 80, 80, 0.3);
+    border-radius: 6px;
+    color: #f2a7a7;
+    font-size: 12px;
+    line-height: 1.45;
+    font-family: var(--font-ui);
+  }
+  .gate-footnote { font-size: 11px; color: var(--text-mute); text-align: center; }
+
+  .user-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 4px;
+    margin-right: 8px;
+    background: #12161d;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    -webkit-app-region: no-drag;
+    cursor: pointer;
+    transition: background 120ms, border-color 120ms;
+    position: relative;
+  }
+  .user-badge:hover { background: #181d25; border-color: var(--border); }
+  .user-badge img, .user-badge .user-dot {
+    width: 22px; height: 22px; border-radius: 50%; object-fit: cover; flex-shrink: 0;
+  }
+  .user-badge .user-dot {
+    background: var(--accent-dim);
+    display: grid; place-items: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .user-badge .user-name {
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 500;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .user-badge .user-caret { opacity: 0.5; }
+  .user-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 160px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+  }
+  .user-menu-item {
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text-dim);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 120ms, color 120ms;
+  }
+  .user-menu-item:hover { background: #1b2029; color: var(--text); }
+  .user-menu-sep {
+    height: 1px;
+    background: var(--border-soft);
+    margin: 4px 2px;
+  }
+  .user-menu-meta {
+    padding: 10px 12px 2px;
+    font-size: 11.5px;
+    color: var(--text-mute);
+    font-weight: 500;
+  }
+  .user-menu-sub {
+    padding: 2px 12px 8px;
+    font-size: 13px;
+    color: var(--text);
+    font-family: var(--font-ui);
+    word-break: break-all;
+    font-weight: 500;
+  }
+
   .field {
     display: grid;
     grid-template-columns: 1fr auto;
     align-items: center;
-    gap: 10px;
-    padding: 10px 0;
+    gap: 16px;
+    padding: 18px 0;
     border-top: 1px solid var(--border-soft);
   }
-  .field:first-child { border-top: none; padding-top: 0; }
-  .field:last-child { padding-bottom: 0; }
-  .field-label { font-size: 12.5px; color: var(--text); font-weight: 500; }
-  .field-sub { font-size: 11px; color: var(--text-mute); margin-top: 2px; }
+  .field:first-child { border-top: none; padding-top: 4px; }
+  .field:last-child { padding-bottom: 4px; }
+  .field-label { font-size: 13.5px; color: var(--text); font-weight: 500; letter-spacing: -0.005em; }
+  .field-sub { font-size: 12px; color: var(--text-mute); margin-top: 4px; line-height: 1.5; }
   .slider-row { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; margin-top: 10px; }
   .slider {
     flex: 1;
@@ -451,7 +645,7 @@
     box-shadow: 0 0 0 4px var(--bg), 0 0 10px var(--accent-glow);
   }
   .slider-value {
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 12px;
     color: var(--accent);
     min-width: 58px;
@@ -485,7 +679,7 @@
     align-items: center;
     gap: 10px;
     padding: 9px 0;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 11.5px;
   }
   .update-row .k { color: var(--text-mute); min-width: 76px; }
@@ -501,16 +695,17 @@
   }
   .update-progress-fill { height: 100%; background: var(--accent); transition: width 200ms; }
 
-  .hint { font-size: 11px; color: var(--text-mute); font-family: var(--font-mono); }
+  .hint { font-size: 12px; color: var(--text-mute); font-family: var(--font-ui); line-height: 1.5; }
   .row { display: flex; align-items: center; gap: 8px; }
   .tag-pill {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    padding: 2px 6px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    padding: 3px 10px;
     background: var(--raised);
     border: 1px solid var(--border);
-    border-radius: 4px;
+    border-radius: 999px;
     color: var(--text-dim);
+    font-weight: 500;
   }
   .tag-pill.accent { color: var(--accent); border-color: oklch(0.78 0.12 210 / 0.3); background: var(--accent-dim); }
   .tag-pill.err { color: var(--red); border-color: oklch(0.70 0.18 25 / 0.3); background: oklch(0.70 0.18 25 / 0.1); }
@@ -521,32 +716,31 @@
     background: oklch(0.70 0.18 25 / 0.08);
     border: 1px solid oklch(0.70 0.18 25 / 0.25);
     border-radius: 6px;
-    font-family: var(--font-mono);
+    font-family: var(--font-ui);
     font-size: 11px;
     color: var(--red);
     white-space: pre-wrap;
   }
 
   .status-footer {
-    margin-top: 20px;
-    padding-top: 18px;
+    margin-top: 32px;
+    padding-top: 28px;
     border-top: 1px solid var(--border-soft);
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
   .status-footer-hd {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
   .status-footer-hd h4 {
     margin: 0;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-mute);
+    font-size: 13px;
+    letter-spacing: -0.005em;
+    color: var(--text);
     font-weight: 600;
   }
 
@@ -559,16 +753,17 @@
     flex: 1;
     background: #0c0f14;
     border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 12px;
+    border-radius: 8px;
+    padding: 11px 14px;
     color: var(--text-dim);
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 11.5px;
     outline: none;
     cursor: default;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    letter-spacing: -0.01em;
   }
 </style>
 </head>
@@ -603,14 +798,28 @@ const STATES = {
   IDLE: 'idle', SCANNING: 'scanning', WAITING: 'waiting',
   INJECTING: 'injecting', INJECTED: 'injected', ERROR: 'error', UPDATING: 'updating',
 };
+
+const AUTH = { LOADING: 'loading', ANON: 'anon', AUTHED: 'authed' };
+
+// Human-friendly mapping for backend error codes surfaced during login.
+const LOGIN_ERROR_COPY = {
+  missing_api_url: 'Set the API URL in config before signing in.',
+  missing_discord_client_id: 'Set the Discord client ID in config before signing in.',
+  oauth_timeout: 'Sign-in window timed out. Try again.',
+  state_mismatch: 'OAuth state mismatch. Try again.',
+  missing_code: 'Discord did not return an authorization code.',
+  invalid_body: 'Backend rejected the request payload.',
+  invalid_discord_token: 'Discord rejected the access token.',
+  banned: 'Your account is banned.',
+};
 const STATUS_COPY = {
-  idle:      { label: 'Idle',       sub: 'Awaiting target process' },
-  scanning:  { label: 'Scanning',   sub: 'Searching for RocketLeague.exe' },
-  waiting:   { label: 'Queued',     sub: 'Countdown before injection' },
-  injecting: { label: 'Injecting',  sub: 'Writing module into process memory' },
-  injected:  { label: 'Injected',   sub: 'Module loaded · hooks active' },
-  error:     { label: 'Error',      sub: 'Injection failed' },
-  updating:  { label: 'Updating',   sub: 'Fetching latest build' },
+  idle:      { label: 'Ready',      sub: 'Waiting for the game to launch' },
+  scanning:  { label: 'Scanning',   sub: 'Looking for Rocket League' },
+  waiting:   { label: 'Preparing',  sub: 'Getting ready to attach' },
+  injecting: { label: 'Attaching',  sub: 'Loading the module' },
+  injected:  { label: 'Connected',  sub: 'Module is running' },
+  error:     { label: 'Error',      sub: 'Something went wrong' },
+  updating:  { label: 'Updating',   sub: 'Fetching the latest build' },
 };
 
 function App() {
@@ -626,6 +835,11 @@ function App() {
   const [errMsg, setErrMsg] = useState('');
   const [route, setRoute] = useState('injector');
   const [dllPath, setDllPath] = useState('');
+
+  const [authStatus, setAuthStatus] = useState(AUTH.LOADING);
+  const [authUser, setAuthUser] = useState(null);
+  const [authError, setAuthError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
   const injectedPidRef = useRef(null);
   const didAutoRef = useRef(false);
@@ -646,8 +860,28 @@ function App() {
     })();
   }, [refreshDll]);
 
-  // poll process every 2s
+  // Hydrate auth state on mount and re-check after login/logout. The main
+  // process is the source of truth; renderer just mirrors.
+  const refreshAuth = useCallback(async () => {
+    const s = await IPC.auth.status();
+    if (s?.authenticated) {
+      setAuthStatus(AUTH.AUTHED);
+      setAuthUser(s.user || null);
+    } else {
+      setAuthStatus(AUTH.ANON);
+      setAuthUser(null);
+    }
+  }, []);
+
+  useEffect(() => { refreshAuth(); }, [refreshAuth]);
+
+  // Auth-gated injection-related polling. We still let the user see the UI
+  // while anon, but no background work should happen.
+  const authed = authStatus === AUTH.AUTHED;
+
+  // poll process every 2s (only while authenticated)
   useEffect(() => {
+    if (!authed) return;
     let alive = true;
     const tick = async () => {
       const p = await IPC.findProcess();
@@ -669,17 +903,18 @@ function App() {
     tick();
     const id = setInterval(tick, 2000);
     return () => { alive = false; clearInterval(id); };
-  }, []);
+  }, [authed]);
 
-  // auto-inject once after process appears
+  // auto-inject once after process appears (gated on auth)
   useEffect(() => {
+    if (!authed) return;
     if (proc && autoInject && state === STATES.IDLE && !didAutoRef.current && injectedPidRef.current !== proc.pid) {
       didAutoRef.current = true;
       const id = setTimeout(() => beginInject(true), 400);
       return () => clearTimeout(id);
     }
     if (!proc) didAutoRef.current = false;
-  }, [proc, autoInject, state]);
+  }, [proc, autoInject, state, authed]);
 
   // countdown
   useEffect(() => {
@@ -698,7 +933,7 @@ function App() {
   }, [state, injectProgress]);
 
   const beginInject = async (isAuto = false) => {
-    if (!proc) { setErrMsg('No target process. Launch Rocket League first.'); setState(STATES.ERROR); return; }
+    if (!proc) { setErrMsg('Rocket League is not running. Launch it first.'); setState(STATES.ERROR); return; }
     setErrMsg('');
     setState(STATES.SCANNING);
 
@@ -771,6 +1006,34 @@ function App() {
     await IPC.launchGame();
   };
 
+  const handleLogin = async () => {
+    setAuthError('');
+    setLoggingIn(true);
+    try {
+      const res = await IPC.auth.login();
+      if (res.ok) {
+        await refreshAuth();
+      } else {
+        const msg = LOGIN_ERROR_COPY[res.error] || res.error || 'Login failed.';
+        if (res.banned && res.banned.bannedReason) {
+          setAuthError(`Account banned: ${res.banned.bannedReason}`);
+        } else {
+          setAuthError(msg);
+        }
+      }
+    } catch (e) {
+      setAuthError(String(e?.message || e));
+    } finally {
+      setLoggingIn(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await IPC.auth.logout();
+    setAuthStatus(AUTH.ANON);
+    setAuthUser(null);
+  };
+
   const canInject = !!proc && (state === STATES.IDLE || state === STATES.ERROR) && !!dllInfo?.cached;
   const isBusy = [STATES.SCANNING, STATES.WAITING, STATES.INJECTING, STATES.UPDATING].includes(state);
   const isInjected = state === STATES.INJECTED;
@@ -778,7 +1041,7 @@ function App() {
 
   return (
     <div className="window">
-      <Titlebar />
+      <Titlebar user={authUser} onLogout={handleLogout} />
       <div className="body">
         <Sidebar route={route} setRoute={setRoute} />
         <div className="main">
@@ -786,15 +1049,15 @@ function App() {
             <div>
               <h1>{route === 'injector' ? 'Injector' : route === 'settings' ? 'Settings' : 'About'}</h1>
               <p>
-                {route === 'injector' && 'Attach the Anti Bot module to Rocket League at runtime.'}
-                {route === 'settings' && 'Timing and automation.'}
-                {route === 'about' && 'Credits and information.'}
+                {route === 'injector' && 'Launch Rocket League and attach the module in one click.'}
+                {route === 'settings' && 'Control how the launcher behaves when the game appears.'}
+                {route === 'about' && 'Credits and version information.'}
               </p>
             </div>
             {route === 'injector' && (
               <div className={`proc-pill ${proc ? 'running' : ''}`}>
                 <span className="dot" />
-                <span>{proc ? `RocketLeague.exe · PID ${proc.pid}` : 'Process not found'}</span>
+                <span>{proc ? 'Rocket League is running' : 'Rocket League is not running'}</span>
               </div>
             )}
           </header>
@@ -819,14 +1082,13 @@ function App() {
               <div className="col">
                 <div className="card">
                   <div className="card-hd">
-                    <h3>Library</h3>
-                    <span className="hint">Source Module</span>
+                    <h3>Module</h3>
                   </div>
                   <div className="card-bd">
                     <div className="field">
                       <div>
-                        <div className="field-label">Custom DLL Path</div>
-                        <div className="field-sub">Location of the antibot.dll to be injected</div>
+                        <div className="field-label">Custom DLL path</div>
+                        <div className="field-sub">Location of the module file that will be loaded into the game.</div>
                       </div>
                     </div>
                     <div className="path-picker">
@@ -838,14 +1100,13 @@ function App() {
 
                 <div className="card">
                   <div className="card-hd">
-                    <h3>Timing</h3>
-                    <span className="hint">Applied before LoadLibrary</span>
+                    <h3>Behavior</h3>
                   </div>
                   <div className="card-bd">
                     <div className="field">
                       <div>
-                        <div className="field-label">Inject delay</div>
-                        <div className="field-sub">Wait after process detection before attaching</div>
+                        <div className="field-label">Start delay</div>
+                        <div className="field-sub">How long to wait after the game appears before attaching.</div>
                       </div>
                       <div className="slider-value">{(delay/1000).toFixed(1)}s</div>
                       <div className="slider-row">
@@ -862,15 +1123,15 @@ function App() {
                     </div>
                     <div className="field">
                       <div>
-                        <div className="field-label">Auto-inject</div>
-                        <div className="field-sub">Attach as soon as the game process appears</div>
+                        <div className="field-label">Attach automatically</div>
+                        <div className="field-sub">Start attaching as soon as Rocket League appears.</div>
                       </div>
                       <div className={`toggle ${autoInject ? 'on' : ''}`} onClick={() => setAutoInject(a => !a)} />
                     </div>
                     <div className="field">
                       <div>
-                        <div className="field-label">Auto-update module</div>
-                        <div className="field-sub">Copy latest build from source dir before each inject</div>
+                        <div className="field-label">Keep the module updated</div>
+                        <div className="field-sub">Pull the latest build from the source folder before each attach.</div>
                       </div>
                       <div className={`toggle ${autoUpdate ? 'on' : ''}`} onClick={() => setAutoUpdate(a => !a)} />
                     </div>
@@ -897,20 +1158,27 @@ function App() {
           )}
         </div>
       </div>
+      {authStatus !== AUTH.AUTHED && (
+        <AuthGate
+          loading={authStatus === AUTH.LOADING}
+          loggingIn={loggingIn}
+          error={authError}
+          onLogin={handleLogin}
+        />
+      )}
     </div>
   );
 }
 
-function Titlebar() {
+function Titlebar({ user, onLogout }) {
   return (
     <div className="titlebar">
       <div className="titlebar-brand">
         <img className="titlebar-brand-mark" src="logo.png" alt="" />
         <strong>Anti Bot Injector</strong>
-        <span className="sep">—</span>
-        <span>v1.0</span>
       </div>
       <div className="titlebar-spacer" />
+      {user && <UserBadge user={user} onLogout={onLogout} />}
       <div className="win-controls">
         <div className="win-btn" title="Minimize" onClick={() => IPC.win.minimize()}>
           <svg width="10" height="10" viewBox="0 0 10 10"><path d="M1 5h8" stroke="currentColor" strokeWidth="1.2" /></svg>
@@ -945,9 +1213,9 @@ function Sidebar({ route, setRoute }) {
 function StatusCard({ state, status, waitRemaining, injectProgress, canInject, isInjected, isBusy, errMsg, onInject, onLaunch, hasProc, dllInfo, updateProgress, onUpdate, onRefresh }) {
   const cls = `status-card status-${state}`;
   let displaySub = status.sub;
-  if (state === STATES.WAITING) displaySub = `T-${(waitRemaining/1000).toFixed(1)}s · delay active`;
-  if (state === STATES.INJECTING) displaySub = `${injectProgress.toFixed(0)}% · CreateRemoteThread → LoadLibraryW`;
-  if (state === STATES.INJECTED) displaySub = 'Module loaded · LoadLibraryW succeeded';
+  if (state === STATES.WAITING) displaySub = `Starting in ${(waitRemaining/1000).toFixed(1)} seconds`;
+  if (state === STATES.INJECTING) displaySub = `Loading the module, ${injectProgress.toFixed(0)}%`;
+  if (state === STATES.INJECTED) displaySub = 'Module is running in Rocket League';
 
   const isUpdating = state === STATES.UPDATING;
   const src = dllInfo?.source;
@@ -957,7 +1225,7 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
   if (isInjected) {
     btn = (
       <button className="inject-btn ghost" disabled>
-        <Icon d={I.check} size={13} /> Injected — restart game to detach
+        <Icon d={I.check} size={13} /> Running. Restart the game to detach.
       </button>
     );
   } else if (!hasProc) {
@@ -970,7 +1238,7 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
     btn = (
       <button className="inject-btn" disabled={!canInject || isBusy} onClick={onInject}>
         <Icon d={I.zap} size={14} />
-        {isBusy ? status.label + '…' : 'Inject Module'}
+        {isBusy ? status.label + '...' : 'Attach to Rocket League'}
       </button>
     );
   }
@@ -979,7 +1247,7 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
     <div className={cls}>
       <div className="status-top">
         <div className="status-label">Injection Status</div>
-        <span className="status-badge"><span>●</span> {state.toUpperCase()}</span>
+        <span className="status-badge"><span className="status-dot" /> {status.label}</span>
       </div>
       <div className="status-value">
         <div className="status-indicator">
@@ -1006,10 +1274,10 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
 
       <div className="status-footer">
         <div className="status-footer-hd">
-          <h4>Module Updates</h4>
-          {!src && <span className="tag-pill err">NO SOURCE</span>}
-          {src && available && !isUpdating && <span className="tag-pill accent">UPDATE READY</span>}
-          {src && !available && !isUpdating && <span className="tag-pill">LATEST</span>}
+          <h4>Module updates</h4>
+          {!src && <span className="tag-pill err">No source file</span>}
+          {src && available && !isUpdating && <span className="tag-pill accent">Update ready</span>}
+          {src && !available && !isUpdating && <span className="tag-pill">Up to date</span>}
         </div>
 
         {isUpdating && (
@@ -1017,7 +1285,7 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
             <div className="update-progress">
               <div className="update-progress-fill" style={{width: `${updateProgress}%`}} />
             </div>
-            <div className="hint" style={{marginTop:6}}>Copying built library · {updateProgress.toFixed(0)}%</div>
+            <div className="hint" style={{marginTop:6}}>Copying the latest build, {updateProgress.toFixed(0)}%</div>
           </div>
         )}
 
@@ -1029,7 +1297,7 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
             onClick={onUpdate}
           >
             <Icon d={available ? I.download : I.check} size={13} />
-            {isUpdating ? 'Updating…' : available ? 'Update module' : 'Up to date'}
+            {isUpdating ? 'Updating...' : available ? 'Update module' : 'Up to date'}
           </button>
           <button
             className="btn-secondary"
@@ -1041,6 +1309,72 @@ function StatusCard({ state, status, waitRemaining, injectProgress, canInject, i
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function AuthGate({ loading, loggingIn, error, onLogin }) {
+  return (
+    <div className="gate-backdrop">
+      <div className="gate-card">
+        <div className="gate-head">
+          <img src="logo.png" alt="" />
+          <div className="gate-title">Welcome back</div>
+          <div className="gate-sub">Sign in with Discord to use the injector.</div>
+        </div>
+
+        <button
+          className="gate-login-btn"
+          type="button"
+          onClick={onLogin}
+          disabled={loading || loggingIn}
+        >
+          {loggingIn
+            ? 'Waiting for Discord...'
+            : loading
+              ? 'Loading...'
+              : 'Sign in with Discord'}
+        </button>
+
+        {error && <div className="gate-error">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+function UserBadge({ user, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const initial = (user.username || user.globalName || '?').slice(0, 1);
+  return (
+    <div className="user-badge" ref={ref} onClick={() => setOpen(o => !o)}>
+      {user.avatar
+        ? <img src={user.avatar} alt="" referrerPolicy="no-referrer" />
+        : <span className="user-dot">{initial}</span>}
+      <span className="user-name">{user.globalName || user.username}</span>
+      <svg className="user-caret" width="10" height="10" viewBox="0 0 10 10">
+        <path d="M2 3.5 5 6.5 8 3.5" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      {open && (
+        <div className="user-menu" onClick={e => e.stopPropagation()}>
+          <div className="user-menu-meta">Signed in as</div>
+          <div className="user-menu-sub">{user.username}{user.role === 'admin' ? ' (admin)' : ''}</div>
+          <div className="user-menu-sep" />
+          <div className="user-menu-item" onClick={() => { setOpen(false); onLogout(); }}>
+            Sign out
+          </div>
+        </div>
+      )}
     </div>
   );
 }

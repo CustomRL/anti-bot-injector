@@ -4,16 +4,34 @@ const fs = require('fs');
 const os = require('os');
 const { execFile, spawn } = require('child_process');
 
+const auth = require('./auth');
+const pipe = require('./pipe');
+
 const CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
 const DEFAULT_DLL_PATH = '';
 const CACHE_DIR = path.join(os.homedir(), 'AppData', 'Roaming', 'AntiBot', 'modules');
 const TARGET_PROCESS = 'RocketLeague.exe';
 const STEAM_APPID = '252950';
 
+// Baked-in identifiers. Change + rebuild the launcher for other environments.
+const DISCORD_CLIENT_ID = '1495830551184277564';
+const API_URL = 'https://antibot-mu.vercel.app';
+
 let win;
 let config = {
-  dllPath: DEFAULT_DLL_PATH
+  dllPath: DEFAULT_DLL_PATH,
 };
+
+// In-memory only. Session tokens (5 min) are never persisted to disk — if
+// the launcher restarts, the user logs in again.
+// Shape: { sessionToken, expiresAt, user, discordAccessToken }.
+let session = null;
+
+// Once we've injected into a live RL process, we periodically refresh the
+// 5-minute launcher session and push it to the DLL via the pipe. The
+// interval lives until the target process exits or the user logs out.
+let refreshTimer = null;
+let injectedPid = null;
 
 function loadConfig() {
   try {
@@ -112,6 +130,103 @@ ipcMain.handle('game:launch', async () => {
   }
 });
 
+// ---------- auth ----------
+function sessionPayload() {
+  if (!session) return { authenticated: false };
+  if (Date.now() >= session.expiresAt) {
+    session = null;
+    return { authenticated: false };
+  }
+  return {
+    authenticated: true,
+    expiresAt: session.expiresAt,
+    user: session.user,
+  };
+}
+
+ipcMain.handle('auth:status', () => sessionPayload());
+
+ipcMain.handle('auth:login', async () => {
+  try {
+    const result = await auth.login({
+      apiUrl: API_URL,
+      discordClientId: DISCORD_CLIENT_ID,
+    });
+    session = result;
+    return { ok: true, ...sessionPayload() };
+  } catch (e) {
+    const message = typeof e?.message === 'string' ? e.message : String(e);
+    const bannedInfo = e?.status === 403 && e?.body?.error === 'banned'
+      ? { bannedAt: e.body.bannedAt ?? null, bannedReason: e.body.bannedReason ?? null }
+      : null;
+    return { ok: false, error: message, banned: bannedInfo };
+  }
+});
+
+ipcMain.handle('auth:logout', () => {
+  session = null;
+  stopRefreshLoop();
+  return { ok: true };
+});
+
+// ---------- session refresh ----------
+
+function stopRefreshLoop() {
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+  injectedPid = null;
+}
+
+function isProcessAlive(pid) {
+  try {
+    // Signal 0 is a liveness probe on both POSIX and Node-on-Windows.
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function refreshAndPush() {
+  if (!session || !injectedPid) return;
+  if (!isProcessAlive(injectedPid)) {
+    console.log('[refresh] target process gone; stopping refresh loop');
+    stopRefreshLoop();
+    return;
+  }
+  if (!session.discordAccessToken) {
+    console.warn('[refresh] no discord_access_token cached; cannot refresh');
+    stopRefreshLoop();
+    return;
+  }
+  try {
+    const fresh = await auth.refreshLauncherSession({
+      apiUrl: API_URL,
+      discordAccessToken: session.discordAccessToken,
+    });
+    session = { ...session, ...fresh };
+    await pipe.handoff(injectedPid, {
+      sessionToken: fresh.sessionToken,
+      apiUrl: API_URL,
+    }, { timeoutMs: 5_000 });
+    console.log('[refresh] pushed fresh session to DLL');
+  } catch (e) {
+    console.warn('[refresh] failed:', e.message || e);
+    // Don't stop the loop on one failure; try again at the next tick.
+    // If the discord token itself is dead, the next tick will also fail
+    // and the user can re-login manually.
+  }
+}
+
+function startRefreshLoop(pid) {
+  stopRefreshLoop();
+  injectedPid = pid;
+  // Refresh 60s before the 5-min session would expire.
+  refreshTimer = setInterval(refreshAndPush, 4 * 60 * 1000);
+}
+
 // ---------- dll cache / update ----------
 function ensureCacheDir() {
   if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
@@ -166,6 +281,10 @@ function quoteForPs(s) {
 }
 
 function buildInjectorScript(pid, dllPath) {
+  const safePid = Number.parseInt(String(pid), 10);
+  if (!Number.isFinite(safePid) || safePid <= 0) {
+    throw new Error('invalid_pid');
+  }
   return `
 $ErrorActionPreference = 'Stop'
 Add-Type -Namespace W -Name N -MemberDefinition @'
@@ -186,7 +305,7 @@ public static extern uint WaitForSingleObject(IntPtr h, uint ms);
 [DllImport("kernel32.dll")]
 public static extern bool CloseHandle(IntPtr h);
 '@
-$pidTarget = ${pid}
+$pidTarget = ${safePid}
 $dll = '${quoteForPs(dllPath)}'
 $bytes = [System.Text.Encoding]::Unicode.GetBytes($dll + [char]0)
 $h = [W.N]::OpenProcess(0x1F0FFF, $false, $pidTarget)
@@ -210,9 +329,14 @@ Write-Output ("REMOTE=" + $addr.ToString())
 `;
 }
 
-ipcMain.handle('inject:run', async (_evt, { pid, dllPath }) => {
+function runInjector(pid, dllPath) {
   return new Promise((resolve) => {
-    const script = buildInjectorScript(pid, dllPath);
+    let script;
+    try {
+      script = buildInjectorScript(pid, dllPath);
+    } catch (e) {
+      return resolve({ ok: false, error: String(e.message || e) });
+    }
     const ps = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script], { windowsHide: true });
     let out = '', err = '';
     ps.stdout.on('data', d => out += d.toString());
@@ -227,4 +351,41 @@ ipcMain.handle('inject:run', async (_evt, { pid, dllPath }) => {
       }
     });
   });
+}
+
+ipcMain.handle('inject:run', async (_evt, { pid, dllPath }) => {
+  const status = sessionPayload();
+  if (!status.authenticated) {
+    return { ok: false, error: 'not_authenticated' };
+  }
+
+  const injected = await runInjector(pid, dllPath);
+  if (!injected.ok) return injected;
+
+  try {
+    await pipe.handoff(pid, {
+      sessionToken: session.sessionToken,
+      apiUrl: API_URL,
+    }, { timeoutMs: 10_000 });
+  } catch (e) {
+    // DLL is loaded but never got the session. The DLL will fail its gate
+    // and refuse to unlock. Surface the specific failure so the UI can
+    // explain it rather than showing a generic success.
+    return {
+      ok: false,
+      injected: true,
+      error: `handoff_failed:${e.message || e}`,
+      thread: injected.thread,
+      remote: injected.remote,
+    };
+  }
+
+  startRefreshLoop(pid);
+
+  return {
+    ok: true,
+    thread: injected.thread,
+    remote: injected.remote,
+    sessionExpiresAt: session.expiresAt,
+  };
 });
