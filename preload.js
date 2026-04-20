@@ -1,0 +1,20 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('api', {
+  win: {
+    minimize: () => ipcRenderer.invoke('win:minimize'),
+    maximize: () => ipcRenderer.invoke('win:maximize'),
+    close: () => ipcRenderer.invoke('win:close'),
+  },
+  settings: {
+    get: () => ipcRenderer.invoke('settings:get'),
+    set: (config) => ipcRenderer.invoke('settings:set', config),
+    pickDll: () => ipcRenderer.invoke('settings:pickDll'),
+  },
+  findProcess: () => ipcRenderer.invoke('proc:find'),
+  launchGame: () => ipcRenderer.invoke('game:launch'),
+  dllStatus: () => ipcRenderer.invoke('dll:status'),
+  dllUpdate: () => ipcRenderer.invoke('dll:update'),
+  inject: (pid, dllPath) => ipcRenderer.invoke('inject:run', { pid, dllPath }),
+  openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+});
