@@ -70,11 +70,11 @@ async function trySilentReauth() {
     });
     session = { ...result, discordAccessToken: config.discordAccessToken };
     console.log('[auth] silent reauth successful for:', result.user?.username || 'user');
+    startRefreshLoop();
   } catch (e) {
     console.warn('[auth] silent reauth failed:', e.message || e);
-    // If re-auth fails, clear the stale token so we don't keep trying.
-    config.discordAccessToken = null;
-    saveConfig();
+    // On reauth failure, it might be a net blip; we don't clear the token
+    // here, but we don't start the refresh loop either.
   }
 }
 
@@ -199,6 +199,7 @@ ipcMain.handle('auth:login', async () => {
     // Persist for silent re-auth on next launch.
     config.discordAccessToken = result.discordAccessToken;
     saveConfig();
+    startRefreshLoop();
     return { ok: true, ...sessionPayload() };
   } catch (e) {
     const message = typeof e?.message === 'string' ? e.message : String(e);
@@ -305,40 +306,44 @@ function isProcessAlive(pid) {
 }
 
 async function refreshAndPush() {
-  if (!session || !injectedPid) return;
-  if (!isProcessAlive(injectedPid)) {
-    console.log('[refresh] target process gone; stopping refresh loop');
+  if (!session || !session.discordAccessToken) {
     stopRefreshLoop();
     return;
   }
-  if (!session.discordAccessToken) {
-    console.warn('[refresh] no discord_access_token cached; cannot refresh');
-    stopRefreshLoop();
-    return;
-  }
+
   try {
     const fresh = await auth.refreshLauncherSession({
       apiUrl: API_URL,
       discordAccessToken: session.discordAccessToken,
     });
     session = { ...session, ...fresh };
-    await pipe.handoff(injectedPid, {
-      sessionToken: fresh.sessionToken,
-      apiUrl: API_URL,
-    }, { timeoutMs: 5_000 });
-    console.log('[refresh] pushed fresh session to DLL');
+    console.log('[refresh] session refreshed');
+
+    // If we are currently injected into a process, also push to the DLL.
+    if (injectedPid) {
+      if (isProcessAlive(injectedPid)) {
+        await pipe.handoff(injectedPid, {
+          sessionToken: fresh.sessionToken,
+          apiUrl: API_URL,
+        }, { timeoutMs: 5_000 });
+        console.log('[refresh] pushed fresh session to DLL');
+      } else {
+        console.log('[refresh] target process gone; cleared injectedPid');
+        injectedPid = null;
+      }
+    }
   } catch (e) {
     console.warn('[refresh] failed:', e.message || e);
-    // Don't stop the loop on one failure; try again at the next tick.
-    // If the discord token itself is dead, the next tick will also fail
-    // and the user can re-login manually.
   }
 }
 
 function startRefreshLoop(pid) {
-  stopRefreshLoop();
-  injectedPid = pid;
-  // Refresh 60s before the 5-min session would expire.
+  if (pid) injectedPid = pid;
+
+  // If already running, don't double up.
+  if (refreshTimer) return;
+
+  // Refresh every 4 minutes (assuming 5-min sessions).
   refreshTimer = setInterval(refreshAndPush, 4 * 60 * 1000);
 }
 

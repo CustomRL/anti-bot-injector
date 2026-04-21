@@ -162,25 +162,24 @@ async function login({ apiUrl, discordClientId, oauthPort = DEFAULT_PORT, timeou
     discordAccessToken: discordTokens.access_token,
   });
 
-  const expiresAt = Date.now() + (launcherSession.expires_in ?? 300) * 1000;
+  const expiresAt = Date.now() + (launcherSession.expires_in ?? 3600) * 1000;
   return {
     sessionToken: launcherSession.session_token,
     expiresAt,
     user: launcherSession.user,
-    // Kept in memory so the launcher can re-exchange for a fresh 5-minute
-    // session without sending the user through Discord again. Valid for
-    // ~7 days per Discord's default access_token TTL.
+    // Kept in memory so the launcher can re-exchange for a fresh 1-hour
+    // session without sending the user through Discord again.
     discordAccessToken: discordTokens.access_token,
   };
 }
 
 // Re-exchanges an in-memory discord_access_token for a fresh launcher
-// session. Called on the refresh timer while the DLL is still injected.
+// session.
 async function refreshLauncherSession({ apiUrl, discordAccessToken }) {
   const body = await exchangeLauncherSession({ apiUrl, discordAccessToken });
   return {
     sessionToken: body.session_token,
-    expiresAt: Date.now() + (body.expires_in ?? 300) * 1000,
+    expiresAt: Date.now() + (body.expires_in ?? 3600) * 1000,
     user: body.user,
   };
 }
