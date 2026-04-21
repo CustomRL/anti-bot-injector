@@ -939,6 +939,22 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleContext = (e) => e.preventDefault();
+    const handleKey = (e) => {
+      // Prevent F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J' || e.key === 'C')) || (e.metaKey && e.altKey && e.key === 'I')) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('contextmenu', handleContext);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('contextmenu', handleContext);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, []);
+
   useEffect(() => { refreshAuth(); }, [refreshAuth]);
 
   useEffect(() => {
