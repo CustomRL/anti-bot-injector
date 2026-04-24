@@ -18,9 +18,14 @@ const DLL_FILENAME = 'AntiBot.dll';
 // /api/releases/current (which proxies an R2 object). The cached copy
 // lives at %APPDATA%\AntiBot\modules\AntiBot.dll.
 
-// Baked-in identifiers. Change + rebuild the launcher for other environments.
-const DISCORD_CLIENT_ID = '1495830551184277564';
-const API_URL = 'https://antibot-mu.vercel.app';
+// Baked-in identifiers. Set these before shipping a build.
+//   DISCORD_CLIENT_ID — the public Discord application ID used for the
+//   PKCE sign-in flow. Create an application at
+//   https://discord.com/developers/applications and paste its Client ID.
+//   API_URL          — the origin of your anticlanker deployment, for
+//   example https://your-project.vercel.app (no trailing slash).
+const DISCORD_CLIENT_ID = '';
+const API_URL = '';
 
 let win;
 let config = {

@@ -32,6 +32,3 @@ A specialized launcher for managing and injecting the Anti-Bot module into Rocke
 - **Renderer**: React-driven interface utilizing Babel Standalone for runtime JSX processing.
 - **Security**: DevTools and standard inspection shortcuts are disabled. Discord OAuth is used for session validation.
 
-## Credits
-
-Custom & Billy

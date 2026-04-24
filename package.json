@@ -2,7 +2,6 @@
   "name": "anti-bot-injector",
   "version": "1.0.0",
   "description": "Anti Bot Injector — attach antibot.dll to Rocket League",
-  "author": "Custom & Billy",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -13,7 +12,7 @@
     "electron-builder": "^26.8.1"
   },
   "build": {
-    "appId": "com.customrl.antibot-injector",
+    "appId": "com.antibot.injector",
     "productName": "Anti Bot Injector",
     "win": {
       "target": "portable",
